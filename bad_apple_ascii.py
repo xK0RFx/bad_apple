@@ -1,3 +1,15 @@
+# Константы
+VIDEO_PATH = "bad_apple.mp4"
+AUDIO_PATH = "bad_apple.mp3"
+DEFAULT_WIDTH = 160
+FRAME_BUFFER_SIZE = 5
+STAR_THRESHOLD = 21
+STAR_NEIGHBOR_MAX = 20
+EMPTY_THRESHOLD = 10
+FULL_THRESHOLD = 200
+GRADIENT_STRONG = 50
+ASCII_HEIGHT_RATIO = 0.45
+
 import cv2
 from PIL import Image
 import os
@@ -19,22 +31,27 @@ ASCII_CHARS = {
     'vertical': '|',       
     'horizontal': '-',     
     'medium': '#',         
+    'star': '.',          # добавлен символ для звезды
 }
 
 def init_console():
+    """Инициализация консоли для корректного отображения цветов и очистки экрана."""
     if os.name == 'nt':
         os.system('color')
     print('\033[2J', end='')
 
 def move_cursor_to_home():
+    """Перемещает курсор в левый верхний угол консоли."""
     print('\033[H', end='')
 
-def resize_image(image, new_width=160):
+def resize_image(image, new_width=DEFAULT_WIDTH):
+    """Изменяет размер изображения с учетом пропорций для ASCII-графики."""
     width, height = image.size
-    new_height = int((height / width) * new_width * 0.45)
+    new_height = int((height / width) * new_width * ASCII_HEIGHT_RATIO)
     return image.resize((new_width, new_height))
 
 def analyze_context(pixels, x, y, width, height):
+    """Анализирует окрестность пикселя и возвращает соответствующий ASCII-символ."""
     def get_pixel(px, py):
         if 0 <= px < width and 0 <= py < height:
             return pixels[py * width + px]
@@ -45,31 +62,41 @@ def analyze_context(pixels, x, y, width, height):
     bottom = get_pixel(x, y+1)
     left = get_pixel(x-1, y)
     right = get_pixel(x+1, y)
-    
+
     v_gradient = bottom - top
     h_gradient = right - left
-    
-    if current < 50:
+
+    is_star = current > STAR_THRESHOLD and all(n < STAR_NEIGHBOR_MAX for n in [top, bottom, left, right])
+    is_empty = current < EMPTY_THRESHOLD
+    is_full = current > FULL_THRESHOLD
+    is_vertical = abs(v_gradient) > abs(h_gradient)
+    is_strong_v = abs(v_gradient) > GRADIENT_STRONG
+    is_strong_h = abs(h_gradient) > GRADIENT_STRONG
+
+    if is_star:
+        return ASCII_CHARS['star']
+    if is_empty:
         return ASCII_CHARS['empty']
-    elif current > 200:
+    if is_full:
         return ASCII_CHARS['full']
-    else:
-        if abs(v_gradient) > abs(h_gradient):
-            if v_gradient > 50:
-                return ASCII_CHARS['bottom']
-            elif v_gradient < -50:
-                return ASCII_CHARS['top']
-            else:
-                return ASCII_CHARS['vertical']
+
+    if is_vertical:
+        if v_gradient > GRADIENT_STRONG:
+            return ASCII_CHARS['bottom']
+        elif v_gradient < -GRADIENT_STRONG:
+            return ASCII_CHARS['top']
         else:
-            if h_gradient > 50:
-                return ASCII_CHARS['right']
-            elif h_gradient < -50:
-                return ASCII_CHARS['left']
-            else:
-                return ASCII_CHARS['horizontal']
+            return ASCII_CHARS['vertical']
+    else:
+        if h_gradient > GRADIENT_STRONG:
+            return ASCII_CHARS['right']
+        elif h_gradient < -GRADIENT_STRONG:
+            return ASCII_CHARS['left']
+        else:
+            return ASCII_CHARS['horizontal']
 
 def pixels_to_ascii(image):
+    """Преобразует изображение в строку ASCII-символов."""
     width, height = image.size
     pixels = list(image.getdata())
     ascii_str = ""
@@ -81,8 +108,9 @@ def pixels_to_ascii(image):
     return ascii_str
 
 def main():
-    video_path = "bad_apple.mp4"
-    audio_path = "bad_apple.mp3"
+    """Основная функция: воспроизводит видео и аудио, отображая ASCII-графику в консоли."""
+    video_path = VIDEO_PATH
+    audio_path = AUDIO_PATH
 
     init_console()
     pygame.init()
@@ -92,8 +120,8 @@ def main():
     fps = cap.get(cv2.CAP_PROP_FPS)
     frame_time = 1.0 / fps
     
-    frame_buffer = deque(maxlen=5)
-    for _ in range(5):
+    frame_buffer = deque(maxlen=FRAME_BUFFER_SIZE)
+    for _ in range(FRAME_BUFFER_SIZE):
         ret, frame = cap.read()
         if ret:
             im = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
