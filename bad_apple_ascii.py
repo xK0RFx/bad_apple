@@ -24,13 +24,8 @@ ASCII_CHARS = {
     'bottom': '_',         
     'left': ')',           
     'right': '(',          
-    'top_left': '\\',      
-    'top_right': '/',      
-    'bottom_left': '/',    
-    'bottom_right': '\\',  
     'vertical': '|',       
     'horizontal': '-',     
-    'medium': '#',         
     'star': '.',          # добавлен символ для звезды
 }
 
@@ -70,8 +65,6 @@ def analyze_context(pixels, x, y, width, height):
     is_empty = current < EMPTY_THRESHOLD
     is_full = current > FULL_THRESHOLD
     is_vertical = abs(v_gradient) > abs(h_gradient)
-    is_strong_v = abs(v_gradient) > GRADIENT_STRONG
-    is_strong_h = abs(h_gradient) > GRADIENT_STRONG
 
     if is_star:
         return ASCII_CHARS['star']
@@ -99,23 +92,20 @@ def pixels_to_ascii(image):
     """Преобразует изображение в строку ASCII-символов."""
     width, height = image.size
     pixels = list(image.getdata())
-    ascii_str = ""
+    chars = []
     
     for y in range(height):
         for x in range(width):
-            ascii_str += analyze_context(pixels, x, y, width, height)
+            chars.append(analyze_context(pixels, x, y, width, height))
     
-    return ascii_str
+    return ''.join(chars)
 
 def main():
     """Основная функция: воспроизводит видео и аудио, отображая ASCII-графику в консоли."""
-    video_path = VIDEO_PATH
-    audio_path = AUDIO_PATH
-
     init_console()
     pygame.init()
     pygame.mixer.init()
-    cap = cv2.VideoCapture(video_path)
+    cap = cv2.VideoCapture(VIDEO_PATH)
 
     fps = cap.get(cv2.CAP_PROP_FPS)
     frame_time = 1.0 / fps
@@ -123,13 +113,14 @@ def main():
     frame_buffer = deque(maxlen=FRAME_BUFFER_SIZE)
     for _ in range(FRAME_BUFFER_SIZE):
         ret, frame = cap.read()
-        if ret:
-            im = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
-            im = resize_image(im)
-            ascii_str = pixels_to_ascii(im)
-            frame_buffer.append((ascii_str, im.width))
+        if not ret:
+            break
+        im = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
+        im = resize_image(im)
+        ascii_str = pixels_to_ascii(im)
+        frame_buffer.append((ascii_str, im.width))
 
-    pygame.mixer.music.load(audio_path)
+    pygame.mixer.music.load(AUDIO_PATH)
     pygame.mixer.music.set_volume(0.2)
     pygame.mixer.music.play()
     
